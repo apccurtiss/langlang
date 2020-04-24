@@ -9,19 +9,26 @@ token_types = {
 
     # Keywords
     'kw_match': re.compile(r'match'),
+    'kw_case': re.compile(r'case'),
     'kw_export': re.compile(r'export'),
     'kw_debug': re.compile(r'debug'),
+    'kw_template': re.compile(r'template'),
 
     # Symbols
     'oparen': re.compile(r'\('),
     'cparen': re.compile(r'\)'),
     'obrace': re.compile(r'\{'),
     'cbrace': re.compile(r'\}'),
+    'obracket': re.compile(r'\['),
+    'cbracket': re.compile(r'\]'),
+    'arrow': re.compile(r'=>'),
+    'comma': re.compile(r','),
     'doublecolon': re.compile(r'::'),
+    'colon': re.compile(r':'),
 
     # Literals
-    'string': re.compile(r'"(?:\\"|[^"])*"'),
-    'regex': re.compile(r'/(?:\\/|[^/])*/'),
+    'string': re.compile(r'`(?:\\`|[^`])*`'),
+    'regex': re.compile(r'r`(?:\\`|[^`])*`'),
 
     # Other
     'ident': re.compile(r'\w+'),

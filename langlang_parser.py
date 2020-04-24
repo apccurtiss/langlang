@@ -1,5 +1,5 @@
 import re
-from typing import Any, Callable, Dict, List, Union
+from typing import Any, Callable, Dict, List, Tuple, Union
 
 from langlang_tokenizer import TokenStream
 
@@ -27,20 +27,20 @@ class ParseString(Node):
 
     def assemble(self, context: Dict[str, Any]) -> str:
         # Replace with literal regex that does the same thing.
-        escaped_re = re.sub(r"[-[\]{}()*+?.,\\^$|#\\s]", r"\\\0", self.value[1:-1])
+        escaped_re = re.sub(r"[-[\]{}()*+?.,\\^$|#\\s]", r"\\\0", self.value)
         as_re = f'/^{escaped_re}/'
         context.setdefault('tokens', {})[self.value] = as_re
-        return f'this.__require({self.value})'
+        return f'this.__require("{self.value}")'
 
 class ParseRegex(Node):
     def __init__(self, value: str):
         self.value = value
 
     def assemble(self, context: Dict[str, Any]) -> str:
-        as_str = f'"{self.value[1:-1]}"'
-        as_re = f'/^{self.value[1:-1]}/'
+        as_str = f'{self.value}'
+        as_re = f'/^{self.value}/'
         context.setdefault('tokens', {})[as_str] = as_re
-        return f'this.__require({as_str})'
+        return f'this.__require("{as_str}")'
 
 class ParseSequence(Node):
     def __init__(self, expr1: Node, expr2: Node):
@@ -50,12 +50,27 @@ class ParseSequence(Node):
     def assemble(self, context: Dict[str, Any]) -> str:
         return f'{self.expr1.assemble(context)}, {self.expr2.assemble(context)}'
     
+class Match(Node):
+    def __init__(self, cases: List[Tuple[Node, Node]]):
+        self.cases = cases
+
+    def assemble(self, context: Dict[str, Any]) -> str:
+        raise Exception('Unimplemented')
+
 class Debug(Node):
     def __init__(self, expr: Node):
         self.expr = expr
 
     def assemble(self, context: Dict[str, Any]) -> str:
-        return f'console.log({self.expr.assemble(context)})'
+        return f'console.log(JSON.stringify({self.expr.assemble(context)}))'
+
+class Named(Node):
+    def __init__(self, expr: Node, name: str):
+        self.expr = expr
+        self.name = name
+
+    def assemble(self, context: Dict[str, Any]) -> str:
+        return f'let {self.name} = {self.expr.assemble(context)}'
 
 class Def(Node):
     def __init__(self, name: str, expr: Node, export: bool):
@@ -136,14 +151,31 @@ def multi(*parsers: List[Union[Parser, str]]) -> Callable[[TokenStream, Callable
 
 def parse_string(tokens: TokenStream) -> Node:
     parser = tokens.need('string')
-    return ParseString(value=parser.value)
+    value = parser.value[1:-1].replace('\`', '`')
+    return ParseString(value=value)
 
 def parse_regex(tokens: TokenStream) -> Node:
     parser = tokens.need('regex')
-    return ParseRegex(value=parser.value)
+    value = parser.value[2:-1].replace('\`', '`')
+    return ParseRegex(value=value)
+
+def parse_name(tokens: TokenStream) -> Node:
+    return multi('obracket', parse_expr, 'colon', 'ident', 'cbracket')(tokens, lambda _a, expr, _b, name, _c: Named(expr=expr, name=name))
+
+def parse_debug(tokens: TokenStream) -> Node:
+    return multi('kw_debug', 'oparen', parse_expr, 'cparen')(tokens, lambda _a, _b, expr, _c: Debug(expr=expr))
+
+def parse_atom(tokens: TokenStream) -> Node:
+    return first_of(parse_string, parse_regex, parse_name, parse_debug)(tokens)
+
+def parse_match(tokens: TokenStream) -> Node:
+    def parse_case(tokens: TokenStream) -> Node:
+        return multi('kw_case', parse_expr, 'arrow', parse_expr)(tokens, lambda _a, case, _b, parser: (case, parser))
+
+    return multi('kw_match', 'obrace', list_of(parse_case), 'cbrace')(tokens, lambda _a, _b, cases, _c: Match(cases=cases))
 
 def parse_sequence(tokens: TokenStream) -> Node:
-    expr1 = first_of(parse_string, parse_regex)(tokens)
+    expr1 = parse_atom(tokens)
     expr2 = optional(parse_sequence)(tokens)
     if expr2:
         return ParseSequence(expr1=expr1, expr2=expr2)
@@ -160,9 +192,6 @@ def parse_def(tokens: TokenStream) -> Node:
         export = None
 
     return multi('ident', 'doublecolon', parse_expr)(tokens, lambda name, _b, expr: Def(name=name.value, expr=expr, export=export is not None))
-
-def parse_debug(tokens: TokenStream) -> Node:
-    return multi('kw_debug', 'oparen', parse_expr, 'cparen')(tokens, lambda _a, _b, x, _c: Debug(expr=x))
 
 def parse_statement(tokens: TokenStream) -> Node:
     return first_of(parse_debug, parse_def)(tokens)

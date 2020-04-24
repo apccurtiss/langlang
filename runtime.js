@@ -42,11 +42,11 @@ class Parser {
     }
 
     __require(type) {
+        // console.debug(`Requiring: ${type}`)
         let token = this.__next();
         if (token.type !== type) {
             throw Error(`Expected ${type}, got ${token.type}`)
         }
-        this.index++;
         return token;
     }
 

@@ -8,7 +8,7 @@ def assemble(ast):
     context = {}
     # Statefully changes context
     parsers = ast.assemble(context)
-    context['tokens']['"__whitespace"'] = r'/^(?:\s|\n)+/'
+    context['tokens']['__whitespace'] = r'/^(?:\s|\n)+/'
 
     with open(RUNTIME_TEMPLATE_FILE) as f:
         output_template = Template(f.read())
@@ -19,5 +19,5 @@ def assemble(ast):
         exports='\n'.join(
                 f'exports.{name} = (input) => new Parser(input).__consume_all("{name}");' 
                 for name in context['exports']),
-        tokens='\n'.join(f'{k}: {v},' for k, v in context['tokens'].items()),
+        tokens='\n'.join(f'"{k}": {v},' for k, v in context['tokens'].items()),
     )
