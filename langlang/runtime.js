@@ -57,6 +57,21 @@ class Parser {
         }
     }
 
+    // Parser helper functions
+    __test(parser) {
+        let backup = this.index;
+        try {
+            parser();
+            return true;
+        }
+        catch (e) {
+            return false;
+        }
+        finally {
+            this.index = backup;
+        }
+    }
+
     {{ parsers }}
 }
 

@@ -5,7 +5,7 @@ import subprocess
 from typing import Dict
 import unittest
 
-from langlang import compile
+from langlang.langlang import compile
 
 from jinja2 import Template
 
@@ -36,7 +36,7 @@ process.stdin.on('readable', () => {
 });'''
 
 
-class TestParser(unittest.TestCase):
+class TestBasicPrograms(unittest.TestCase):
     def run_parser(self, name: str, source: str, tests: Dict[str, str], entrypoint='test'):
         parser = compile(source)
         filepath = ''.join(c for c in name.lower() if c in string.ascii_letters) + '.js'
@@ -64,7 +64,9 @@ class TestParser(unittest.TestCase):
                     self.assertEqual(compiler.returncode, 0, 'Parser should have returned 0')
                     if expected:
                         self.assertTrue(stdout, 'Parser failed to print anything')
-                        self.assertDictContainsSubset(expected, json.loads(stdout), 'Parser debug was incorrect')
+                        stdout_json = json.loads(stdout)
+                        for k, v in expected.items():
+                            self.assertEqual(stdout_json.get(k), v)
 
             except subprocess.TimeoutExpired as e:
                 failures[input] = (e, b'', b'')
@@ -83,7 +85,7 @@ class TestParser(unittest.TestCase):
         else:
             os.remove(filepath)
 
-    def test_literal_parser(self):
+    def test_literals(self):
         self.run_parser(
             'Literal Parser',
             '''
@@ -98,7 +100,7 @@ class TestParser(unittest.TestCase):
             }
         )
 
-    def test_regex_parser(self):
+    def test_regex(self):
         self.run_parser(
             'Regex Parser',
             '''
@@ -133,42 +135,42 @@ class TestParser(unittest.TestCase):
             }
         )
 
-    # def test_parser_names(self):
-    #     self.run_parser(
-    #         'Sequence Parser',
-    #         '''
-    #         export number :: r`\\d+`
-    #         export test :: [`foo`: first] [`bar`: second]
-    #         ''',
-    #         {
-    #             'foo bar': '',
-    #             '    foo        bar    ': '',
-    #             'foobar': '',
-    #             'foo': Exception,
-    #             'bar': Exception,
-    #             'foo bar baz': Exception,
-    #         }
-    #     )
+    def test_parser_names(self):
+        self.run_parser(
+            'Sequence Parser',
+            '''
+            export number :: r`\\d+`
+            export test :: [`foo`: first] [`bar`: second]
+            ''',
+            {
+                'foo bar': '',
+                '    foo        bar    ': '',
+                'foobar': '',
+                'foo': Exception,
+                'bar': Exception,
+                'foo bar baz': Exception,
+            }
+        )
 
-    # def test_match_parser(self):
-    #     self.run_parser(
-    #         'Match Parser',
-    #         '''
-    #         export test :: match {
-    #             case "foo" => "bar"
-    #             case "baz" => "bat"
-    #         }
-    #         ''',
-    #         {
-    #             ' foo bar ': '',
-    #             ' baz bat ': '',
-    #             ' foo ': Exception,
-    #             ' baz ': Exception,
-    #             ' foo bat ': Exception,
-    #             ' baz bar ': Exception,
-    #             ' foo baz ': Exception,
-    #         }
-    #     )
+    def test_peek_parser(self):
+        self.run_parser(
+            'Peek Parser',
+            '''
+            export test :: peek {
+                case `foo` => `foo` `bar`
+                case `baz` => `baz` `bat`
+            }
+            ''',
+            {
+                ' foo bar ': '',
+                ' baz bat ': '',
+                ' foo ': Exception,
+                ' baz ': Exception,
+                ' foo bat ': Exception,
+                ' baz bar ': Exception,
+                ' foo baz ': Exception,
+            }
+        )
 
     # def test_template_parser(self):
     #     self.run_parser(

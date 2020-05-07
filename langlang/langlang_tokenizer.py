@@ -8,11 +8,13 @@ token_types = {
     'whitespace': re.compile(r'(?:\s|\n)+'),
 
     # Keywords
-    'kw_match': re.compile(r'match'),
-    'kw_case': re.compile(r'case'),
-    'kw_export': re.compile(r'export'),
-    'kw_debug': re.compile(r'debug'),
-    'kw_template': re.compile(r'template'),
+    'kw_peek': re.compile(r'\bpeek\b'),
+    'kw_match': re.compile(r'\bmatch\b'),
+    'kw_case': re.compile(r'\bcase\b'),
+    'kw_export': re.compile(r'\bexport\b'),
+    'kw_debug': re.compile(r'\bdebug\b'),
+    'kw_template': re.compile(r'\btemplate\b'),
+    'kw_as': re.compile(r'\bas\b'),
 
     # Symbols
     'oparen': re.compile(r'\('),
@@ -27,8 +29,9 @@ token_types = {
     'colon': re.compile(r':'),
 
     # Literals
-    'string': re.compile(r'`(?:\\`|[^`])*`'),
-    'regex': re.compile(r'r`(?:\\`|[^`])*`'),
+    'lit_parser': re.compile(r'`(?:\\`|[^`])*`'),
+    'lit_regex': re.compile(r'r`(?:\\`|[^`])*`'),
+    'lit_string': re.compile(r'"(?:\\"|[^"])*"'),
 
     # Other
     'ident': re.compile(r'\w+'),
@@ -65,13 +68,13 @@ class TokenStream:
         token = self.peek()
 
         if token.type != required_type:
-            raise Exception(f'Unexpected {token.type}; needed {required_type}')
+            raise Exception(f'Unexpected {token.type} ({token.value}); needed {required_type}')
         
         self.index += 1
         return token
 
 
-def tokenize(source: str) -> List[Token]:
+def tokenize(source: str) -> TokenStream:
     index = 0
     tokens = []
     # While there's still source left to consume...
