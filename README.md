@@ -11,7 +11,7 @@ Running the compiler:
 
 Writing a langlang file:
 ```
-// TODO: Examples
+// TODO: Examples (in the mean time, check out the tests for code snippits)
 ```
 
 FAQ
@@ -19,6 +19,9 @@ FAQ
 
 *There's, like, a billion parser generators. Why does this exist?*
 I needed something that allowed for fine-graned controls on the error messages and recovery patterns. C.js targets beginners, so those messages needed to be easy to understand.
+
+*If this "langlang" is so great, why isn't it written in itself?*
+One day, rediculous straw man. One day...
 
 *How can I contribute?*
 My emails is in [my bio](https://github.com/apccurtiss). If anyone's interested in contributing, send me a message and I'll add contribution directions. I haven't yet because they take time, which is scarse.

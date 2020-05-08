@@ -90,7 +90,7 @@ class TestBasicPrograms(unittest.TestCase):
             'Literal Parser',
             '''
             export test :: `foo`
-            ''', 
+            ''',
             {
                 'foo': None,
                 '  foo  ': None,

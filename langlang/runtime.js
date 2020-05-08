@@ -3,7 +3,7 @@
 
 class Parser {
     __tokens = {
-      {{ tokens }}
+{{ tokens }}
     }
 
     __tokenize(s) {
@@ -72,7 +72,7 @@ class Parser {
         }
     }
 
-    {{ parsers }}
+{{ parsers }}
 }
 
 {{ exports }}

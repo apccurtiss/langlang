@@ -2,7 +2,17 @@ import unittest
 
 from langlang import langlang_ast as ast
 from langlang.langlang_tokenizer import tokenize
-from langlang.langlang_parser import *
+from langlang.langlang_parser import (
+    parse_string,
+    parse_regex,
+    parse_name,
+    parse_debug,
+    parse_atom,
+    parse_sequence,
+    parse_def,
+    parse_parser_expr,
+    parse_peek
+)
 
 class TestParser(unittest.TestCase):
     def test_parse_string(self):
