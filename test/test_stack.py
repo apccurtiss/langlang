@@ -116,6 +116,21 @@ class TestBasicPrograms(unittest.TestCase):
             }
         )
 
+    def test_complex_tokens(self):
+        self.run_parser(
+            'Complex tokens',
+            '''
+            ops :: `+` `*` `?` `^` `$`
+            braces :: `[` `]` `(` `)` `{` `}`
+            export test :: `i+` r`i+`
+            ''',
+            {
+                'i+ i': None,
+                'i+ iiiiii': None,
+                'i i': Exception,
+            }
+        )
+
     def test_debug(self):
         self.run_parser(
             'Debug',

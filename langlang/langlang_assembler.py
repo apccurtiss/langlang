@@ -46,16 +46,17 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
     # Basic parsers
     if isinstance(node, ast.LiteralParser):
         # Replace with literal regex that does the same thing.
-        escaped_re = re.sub(r"[-[\]{}()*+?.,\\^$|#\\s]", r"\\\0", node.value)
+        token_name = f'lit_{node.value}'
+        escaped_re = re.sub(r"([-[\]{}()*+?.,\\^$|#\\s])", r"\\\1", node.value)
         as_re = f'/^{escaped_re}/'
-        ctx.tokens[node.value] = as_re
-        return f'{indent}{ctx.storage_method.as_prefix()}runtime.__require("{node.value}");'
+        ctx.tokens[token_name] = as_re
+        return f'{indent}{ctx.storage_method.as_prefix()}this.__require("{token_name}");'
 
     elif isinstance(node, ast.RegexParser):
-        as_str = f'{node.value}'
+        token_name = f're_{node.value}'
         as_re = f'/^{node.value}/'
-        ctx.tokens[as_str] = as_re
-        return f'{indent}{ctx.storage_method.as_prefix()}runtime.__require("{as_str}");'
+        ctx.tokens[token_name] = as_re
+        return f'{indent}{ctx.storage_method.as_prefix()}this.__require("{token_name}");'
 
     # Parser combinators
     elif isinstance(node, ast.Sequence):
@@ -82,7 +83,7 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
                 f'{indent_1}function __test_case_{i}() {{\n'
                 f'{cond}\n'
                 f'{indent_1}}}\n'
-                f'{indent_1}if (runtime.__test(__test_case_{i})) {{\n'
+                f'{indent_1}if (this.__test(__test_case_{i})) {{\n'
                 f'{parser}\n'
                 f'{indent_1}}}\n')
             
@@ -90,7 +91,7 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
         
         return (f'{indent}{original_storage_method.as_prefix()}(function match() {{\n'
                 f'{statements}'
-                f'{indent}}})();\n')
+                f'{indent}}}).call(this);\n')
 
     # Language utilities
     elif isinstance(node, ast.Named):

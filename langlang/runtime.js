@@ -63,7 +63,7 @@ class Parser {
     __test(parser) {
         let backup = this.index;
         try {
-            parser();
+            parser.call(this);
             return true;
         }
         catch (e) {
