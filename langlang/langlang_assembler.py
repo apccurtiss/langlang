@@ -75,18 +75,25 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
         for i, (cond_node, parser_node) in enumerate(node.cases, 1):
             indent_1 = indent + INDENT_SIZE
 
-            ctx.storage_method = Ignore
-            cond = assemble_into_js(cond_node, ctx, indent=indent_1 + INDENT_SIZE)
+            if cond_node:
+                ctx.storage_method = Ignore
+                cond = assemble_into_js(cond_node, ctx, indent=indent_1 + INDENT_SIZE)
+
             ctx.storage_method = Return
             parser = assemble_into_js(parser_node, ctx, indent=indent_1 + INDENT_SIZE)
-            statement = (
-                f'{indent_1}function __test_case_{i}() {{\n'
-                f'{cond}\n'
-                f'{indent_1}}}\n'
-                f'{indent_1}if (this.__test(__test_case_{i})) {{\n'
-                f'{parser}\n'
-                f'{indent_1}}}\n')
+
+            if cond_node:
+                statement = (
+                    f'{indent_1}function __test_case_{i}() {{\n'
+                    f'{cond}\n'
+                    f'{indent_1}}}\n'
+                    f'{indent_1}if (this.__test(__test_case_{i})) {{\n'
+                    f'{parser}\n'
+                    f'{indent_1}}}\n')
             
+            else:
+                statement = parser
+
             statements += statement
         
         return (f'{indent}{original_storage_method.as_prefix()}(function match() {{\n'
@@ -157,7 +164,6 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
 # Dunno' if this is a misnomer, as it's not assembly.
 def assemble(ast):
     context = Context()
-    print(context.tokens)
 
     # Statefully changes context
     parsers = assemble_into_js(ast, context, indent=INDENT_SIZE)

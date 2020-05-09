@@ -92,9 +92,11 @@ def parse_atom(tokens: TokenStream) -> ast.Node:
     return first_of(parse_string, parse_regex, parse_name, parse_debug, parse_peek)(tokens)
 
 def parse_peek(tokens: TokenStream) -> ast.Node:
-    def parse_case(tokens: TokenStream) -> Tuple[ast.Node, ast.Node]:
+    def parse_case(tokens: TokenStream) -> Tuple[Optional[ast.Node], ast.Node]:
         tokens.need('kw_case')
-        case = parse_parser_expr(tokens)
+        case = first_of(
+            lambda tokens: tokens.need('under') and None,
+            parse_parser_expr)(tokens)
         tokens.need('arrow')
         parser = parse_parser_expr(tokens)
         return (case, parser)

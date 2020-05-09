@@ -174,16 +174,41 @@ class TestBasicPrograms(unittest.TestCase):
             export test :: peek {
                 case `foo` => `foo` `bar`
                 case `baz` => `baz` `bat`
+                case _ => `default`
             }
             ''',
             {
                 ' foo bar ': '',
                 ' baz bat ': '',
+                ' default ': '',
                 ' foo ': Exception,
+                ' foo default ': Exception,
                 ' baz ': Exception,
                 ' foo bat ': Exception,
                 ' baz bar ': Exception,
                 ' foo baz ': Exception,
+            }
+        )
+
+    def test_nested_peek_parsers(self):
+        self.run_parser(
+            'Peek Parser',
+            '''
+            export test :: peek {
+                case `foo` => `foo` peek {
+                    case `bar` => `bar` `baz`
+                }
+                case `x` => `x` peek {
+                    case `y` => `y` `z`
+                }
+            }
+            ''',
+            {
+                ' foo bar baz ': '',
+                ' x y z ': '',
+                ' foo y z ': Exception,
+                ' bar baz ': Exception,
+                ' x y ': Exception,
             }
         )
 

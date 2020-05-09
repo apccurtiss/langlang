@@ -62,9 +62,14 @@ class TestParser(unittest.TestCase):
 
     def test_parse_peek(self):
         parse_peek(tokenize(r'peek { case `foo` => `bar` }'))
+        parse_peek(tokenize(r'peek { case _ => `bar` }'))
         parse_peek(tokenize(r'''peek {
             case `foo` => `bar`
             case `baz` => `bat`
+        }'''))
+        parse_peek(tokenize(r'''peek {
+            case `foo` => `bar`
+            case _ => `bat`
         }'''))
         parse_peek(tokenize(r'''peek {
             case `foo` `bar` => `baz` `bat`

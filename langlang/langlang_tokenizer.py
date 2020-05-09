@@ -27,6 +27,7 @@ token_types = {
     'comma': re.compile(r','),
     'doublecolon': re.compile(r'::'),
     'colon': re.compile(r':'),
+    'under': re.compile(r'_'),
 
     # Literals
     'lit_parser': re.compile(r'`(?:\\`|[^`])*`'),
