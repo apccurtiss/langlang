@@ -8,7 +8,7 @@ from .langlang_tokenizer import TokenStream
 Parser = Callable[[TokenStream], Any]
 
 # Parser combinators
-def list_of(parser: Parser, min: int = 0) -> Parser:
+def list_of(parser: Parser, minimum: int = 0, sep: Parser = None) -> Parser:
     def ret(tokens: TokenStream) -> List[ast.Node]:
         items: List[ast.Node] = []
         while True:
@@ -18,10 +18,19 @@ def list_of(parser: Parser, min: int = 0) -> Parser:
                 node = parser(tokens)
             except Exception as e:
                 tokens.index = backup
-                if len(items) < min:
+                if len(items) < minimum:
                     raise Exception(f'Too few items. Last error: {e}')
                 break
             items.append(node)
+
+
+            if sep:
+                backup = tokens.index
+                try:
+                    sep(tokens)
+                except Exception as e:
+                    tokens.index = backup
+                    break
         return items
 
     return ret
@@ -63,48 +72,54 @@ def test(parser: Parser, cond: Callable[[Parser], str]) -> Parser:
 
     return ret
 
-def parse_string(tokens: TokenStream) -> ast.Node:
-    parser = tokens.need('lit_parser')
+def need(token: str) -> Parser:
+    return lambda tokens: tokens.need(token)
+
+def peek_type(token: str) -> Parser:
+    return lambda tokens: tokens.peek_type(token)
+
+def parse_literal_parser(tokens: TokenStream) -> ast.Node:
+    parser = need('lit_parser')(tokens)
     value = parser.value[1:-1].replace('\\`', '`')
     return ast.LiteralParser(value=value)
 
-def parse_regex(tokens: TokenStream) -> ast.Node:
-    parser = tokens.need('lit_regex')
+def parse_regex_parser(tokens: TokenStream) -> ast.Node:
+    parser = need('lit_regex')(tokens)
     value = parser.value[2:-1].replace('\\`', '`')
     return ast.RegexParser(value=value)
 
 def parse_name(tokens: TokenStream) -> ast.Node:
-    tokens.need('obracket')
+    need('obracket')(tokens)
     expr = parse_parser_expr(tokens)
-    tokens.need('colon')
-    name = tokens.need('ident')
-    tokens.need('cbracket')
+    need('colon')(tokens)
+    name = need('ident')(tokens)
+    need('cbracket')(tokens)
     return ast.Named(expr=expr, name=name.value)
 
 def parse_debug(tokens: TokenStream) -> ast.Node:
-    tokens.need('kw_debug')
-    tokens.need('oparen')
+    need('kw_debug')(tokens)
+    need('oparen')(tokens)
     expr = parse_parser_expr(tokens)
-    tokens.need('cparen')
+    need('cparen')(tokens)
     return ast.Debug(expr=expr)
 
 def parse_atom(tokens: TokenStream) -> ast.Node:
-    return first_of(parse_string, parse_regex, parse_name, parse_debug, parse_peek)(tokens)
+    return first_of(parse_literal_parser, parse_regex_parser, parse_var, parse_name, parse_debug, parse_peek)(tokens)
 
 def parse_peek(tokens: TokenStream) -> ast.Node:
     def parse_case(tokens: TokenStream) -> Tuple[Optional[ast.Node], ast.Node]:
-        tokens.need('kw_case')
+        need('kw_case')(tokens)
         case = first_of(
-            lambda tokens: tokens.need('under') and None,
+            lambda tokens: need('under')(tokens) and None,
             parse_parser_expr)(tokens)
-        tokens.need('arrow')
+        need('arrow')(tokens)
         parser = parse_parser_expr(tokens)
         return (case, parser)
 
-    tokens.need('kw_peek')
-    tokens.need('obrace')
-    cases = list_of(parse_case, min=1)(tokens)
-    tokens.need('cbrace')
+    need('kw_peek')(tokens)
+    need('obrace')(tokens)
+    cases = list_of(parse_case, minimum=1)(tokens)
+    need('cbrace')(tokens)
     return ast.Match(cases=cases)
 
 def parse_sequence(tokens: TokenStream) -> ast.Node:
@@ -115,32 +130,60 @@ def parse_sequence(tokens: TokenStream) -> ast.Node:
     else:
         return expr1
 
-def parse_as_expr(tokens: TokenStream) -> ast.Node:
-    name = tokens.need('ident').value
-    return ast.Var(name=name)
-
 def parse_parser_expr(tokens: TokenStream) -> ast.Node:
     def parse_as(tokens: TokenStream) -> ast.Node:
-        tokens.need('kw_as')
-        return parse_as_expr(tokens)
+        need('kw_as')(tokens)
+        return parse_value(tokens)
 
     parser_expr = parse_sequence(tokens)
     as_expr = optional(parse_as)(tokens)
     return ast.ParserExpr(parser_expr=parser_expr, as_expr=as_expr)
 
 def parse_def(tokens: TokenStream) -> ast.Node:
-    if tokens.peek_type('kw_export'):
+    if peek_type('kw_export')(tokens):
         export = tokens.next()
     else:
         export = None
 
-    name = tokens.need('ident').value
-    tokens.need('doublecolon')
+    name = need('ident')(tokens).value
+    need('doublecolon')(tokens)
     expr = parse_parser_expr(tokens)
     return ast.Def(name=name, expr=expr, export=export is not None)
 
 def parse_statement(tokens: TokenStream) -> ast.Node:
     return first_of(parse_debug, parse_def)(tokens)
+
+def parse_value(tokens: TokenStream) -> ast.Node:
+    return first_of(parse_var, parse_struct, parse_string)(tokens)
+
+def parse_var(tokens: TokenStream) -> ast.Node:
+    backup = tokens.index
+    name = need('ident')(tokens).value
+    
+    if peek_type('doublecolon')(tokens):
+        tokens.index = backup
+        raise Exception('Variables can\'t be followed by colons. That would be a definition.')
+
+    return ast.Var(name=name)
+
+def parse_struct(tokens: TokenStream) -> ast.Node:
+    def parse_struct_entry(tokens: TokenStream) -> Tuple[str, str]:
+        ident = need('ident')(tokens).value
+        need('colon')(tokens)
+        value = need('ident')(tokens).value
+        return (ident, value)
+    need('kw_struct')(tokens)
+    name = optional(need('ident'))(tokens)
+    if name:
+        name = name.value
+    need('obrace')(tokens)
+    mapping = {k: v for k, v in list_of(parse_struct_entry, sep=need('comma'))(tokens)}
+    need('cbrace')(tokens)
+    return ast.Struct(name, mapping)
+
+def parse_string(tokens: TokenStream) -> ast.Node:
+    value = need('lit_string')(tokens).value
+    return ast.LitStr(value=value)
 
 def parse_file(tokens: TokenStream) -> ast.Node:
     return ast.StatementSequence(stmts=list_of(parse_statement)(tokens))

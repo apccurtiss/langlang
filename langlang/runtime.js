@@ -53,10 +53,11 @@ class Parser {
     }
 
     __consume_all(parser) {
-        this[parser]();
+        let result = this[parser]();
         if (this.index < this.tokens.length) {
             throw Error(`Remaining tokens: ${this.tokens.slice(this.index).map((t) => t.type)}`)
         }
+        return result;
     }
 
     // Parser helper functions

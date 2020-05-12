@@ -8,6 +8,7 @@ token_types = {
     'whitespace': re.compile(r'(?:\s|\n)+'),
 
     # Keywords
+    'kw_struct': re.compile(r'\bstruct\b'),
     'kw_peek': re.compile(r'\bpeek\b'),
     'kw_match': re.compile(r'\bmatch\b'),
     'kw_case': re.compile(r'\bcase\b'),
@@ -51,13 +52,10 @@ class TokenStream:
         return self.tokens[self.index:]
 
     def peek(self):
-        if self.index >= len(self.tokens):
-            raise Exception('Unexpected EOF!')
-
         return self.tokens[self.index]
 
     def peek_type(self, type):
-        return self.peek().type == type
+        return self.index < len(self.tokens) and self.peek().type == type
 
     def next(self):
         token = self.peek()

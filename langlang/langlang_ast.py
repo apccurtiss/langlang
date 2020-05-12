@@ -1,5 +1,5 @@
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Mapping, Tuple
 
 class Node:
     def __init__(self, *pargs, **kwargs):
@@ -24,7 +24,26 @@ class Match(Node):
     def __init__(self, cases: List[Tuple[Node, Node]]):
         self.cases = cases
 
-# Language   utilities
+# Values
+class LitStr(Node):
+    def __init__(self, value: str):
+        self.value = value
+
+class LitNum(Node):
+    def __init__(self, value: float):
+        self.value = value
+
+class Var(Node):
+    def __init__(self, name: str):
+        self.name = name
+
+class Struct(Node):
+    def __init__(self, name: str, map: Mapping[str, str]):
+        self.name = name
+        self.map = map
+    
+
+# Language utilities
 class Named(Node):
     def __init__(self, expr: Node, name: str):
         self.expr = expr
@@ -38,11 +57,6 @@ class ParserExpr(Node):
 class Debug(Node):
     def __init__(self, expr: Node):
         self.expr = expr
-
-# Expressions
-class Var(Node):
-    def __init__(self, name: str):
-        self.name = name
 
 # File-level structures
 class StatementSequence(Node):

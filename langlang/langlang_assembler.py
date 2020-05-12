@@ -1,4 +1,5 @@
 import copy
+import enum
 import os
 import re
 from typing import Any, Dict, Set, Tuple, Type, Union
@@ -32,6 +33,11 @@ class Var:
     def as_prefix(self):
         return f'let {self.name} = '
 
+# Modes
+class Mode(enum.Enum):
+    parser = 1
+    value = 2
+
 class Context:
     def __init__(self):
         self.tokens = {
@@ -40,6 +46,7 @@ class Context:
         self.storage_method: Union[Type[Ignore], Type[Return], Var] = Ignore
         self.exports: Set[str] = set()
         self.scope: Set[str] = set()
+        self.mode: Mode = Mode.parser
         
 
 def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
@@ -47,16 +54,17 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
     if isinstance(node, ast.LiteralParser):
         # Replace with literal regex that does the same thing.
         token_name = f'lit_{node.value}'
-        escaped_re = re.sub(r"([-[\]{}()*+?.,\\^$|#\\s])", r"\\\1", node.value)
+        escaped_re = re.sub(r"([-/[\]{}()*+?.,\\^$|#\\s])", r"\\\1", node.value)
         as_re = f'/^{escaped_re}/'
         ctx.tokens[token_name] = as_re
-        return f'{indent}{ctx.storage_method.as_prefix()}this.__require("{token_name}");'
+        return f'{indent}{ctx.storage_method.as_prefix()}this.__require("{token_name}").value;'
 
     elif isinstance(node, ast.RegexParser):
         token_name = f're_{node.value}'
-        as_re = f'/^{node.value}/'
+        escaped_re = node.value.replace('/', '\\/')
+        as_re = f'/^{escaped_re}/'
         ctx.tokens[token_name] = as_re
-        return f'{indent}{ctx.storage_method.as_prefix()}this.__require("{token_name}");'
+        return f'{indent}{ctx.storage_method.as_prefix()}this.__require("{token_name}").value;'
 
     # Parser combinators
     elif isinstance(node, ast.Sequence):
@@ -114,8 +122,10 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
         if node.as_expr:
             original_storage_method = ctx.storage_method
             ctx.storage_method = Ignore
+            ctx.mode = Mode.parser
             parser_expr = assemble_into_js(node.parser_expr, ctx, indent=indent)
             ctx.storage_method = original_storage_method
+            ctx.mode = Mode.value
             as_expr = assemble_into_js(node.as_expr, ctx, indent=indent)
             return f'{parser_expr}\n{as_expr}'
         else:
@@ -138,11 +148,27 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
         e = assemble_into_js(node.expr, ctx, indent=indent)
         return f'{e}\n{indent}console.log(JSON.stringify({var_name}));{suffix}'
 
-    # Expressions
+    # Values
     elif isinstance(node, ast.Var):
         if node.name not in ctx.scope:
             raise Exception(f'"{node.name}" is not defined!')
-        return node.name
+
+        if ctx.mode == Mode.parser:
+            return f'{indent}{ctx.storage_method.as_prefix()}this.{node.name}()'
+        elif ctx.mode == Mode.value:
+            return f'{indent}{ctx.storage_method.as_prefix()}{node.name}'
+        else:
+            raise Exception(f'Unknown mode: "{ctx.mode}"')
+
+
+    elif isinstance(node, ast.Struct):
+        indent1 = indent + INDENT_SIZE
+        item_map = f',\n{indent1}'.join(f'"{key}": {value}' for key, value in node.map.items())
+        if node.name:
+            item_map += f',\n{indent1}"_type": "{node.name}"'
+        return (f'{indent}{ctx.storage_method.as_prefix()}{{\n'
+                f'{indent1}{item_map}\n'
+                f'{indent}}}')
 
     # File-level structures
     elif isinstance(node, ast.StatementSequence):
@@ -151,10 +177,10 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
     elif isinstance(node, ast.Def):
         if node.export:
             ctx.exports.add(node.name)
+        ctx.scope.add(node.name)
         ctx.storage_method = Return
         return (f'{indent}{node.name}() {{\n'
-                f'{indent}let runtime = this;\n'
-                f'{assemble_into_js(node.expr, ctx, indent=indent + INDENT_SIZE)}'
+                f'{assemble_into_js(node.expr, ctx, indent=indent + INDENT_SIZE)}\n'
                 f'{indent}}}')
     
     else:

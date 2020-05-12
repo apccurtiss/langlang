@@ -26,7 +26,9 @@ process.stdin.on('readable', () => {
         input += chunk;
     }
     try {
-        exports.test(input);
+        console.log(JSON.stringify({
+            output: exports.test(input)
+        }));
         process.exit(0);
     }
     catch(e) {
@@ -62,11 +64,20 @@ class TestBasicPrograms(unittest.TestCase):
                     self.assertNotEqual(compiler.returncode, 0, 'Parser should have returned non-zero')
                 else:
                     self.assertEqual(compiler.returncode, 0, 'Parser should have returned 0')
+                    def are_equal(value1, value2):
+                        if type(value1) != type(value2):
+                            return False
+
+                        if isinstance(value1, list):
+                            return all(are_equal(e1, e2) for e1, e2 in zip(value1, value2))
+                        elif isinstance(value1, dict):
+                            return all(are_equal(value1[k], v) for k, v in value2.items())
+                        else:
+                            return value1 == value2
+
                     if expected:
-                        self.assertTrue(stdout, 'Parser failed to print anything')
-                        stdout_json = json.loads(stdout)
-                        for k, v in expected.items():
-                            self.assertEqual(stdout_json.get(k), v)
+                        decoded_stdout = json.loads(stdout)['output']
+                        self.assertTrue(are_equal(decoded_stdout, expected), f'{decoded_stdout} != {expected}')
 
             except subprocess.TimeoutExpired as e:
                 failures[input] = (e, b'', b'')
@@ -92,8 +103,8 @@ class TestBasicPrograms(unittest.TestCase):
             export test :: `foo`
             ''',
             {
-                'foo': None,
-                '  foo  ': None,
+                'foo': 'foo',
+                '  foo  ': 'foo',
                 '': Exception,
                 'foobar': Exception,
                 'foo bar': Exception,
@@ -107,12 +118,25 @@ class TestBasicPrograms(unittest.TestCase):
             export test :: r`fo+`
             ''', 
             {
-                'fo': None,
-                'foooooo': None,
-                '  foooooo  ': None,
+                'fo': 'fo',
+                'foooooo': 'foooooo',
+                '  foooooo  ': 'foooooo',
                 '': Exception,
                 'foobar': Exception,
                 'foo bar': Exception,
+            }
+        )
+
+    def test_sequence(self):
+        self.run_parser(
+            'Complex tokens',
+            '''
+            export test :: `foo` `bar`
+            ''',
+            {
+                'foo bar': 'bar',
+                'foo': Exception,
+                'bar': Exception,
             }
         )
 
@@ -125,42 +149,41 @@ class TestBasicPrograms(unittest.TestCase):
             export test :: `i+` r`i+`
             ''',
             {
-                'i+ i': None,
-                'i+ iiiiii': None,
+                'i+ i': 'i',
+                'i+ iiiiii': 'iiiiii',
                 'i i': Exception,
             }
         )
 
-    def test_debug(self):
-        self.run_parser(
-            'Debug',
-            '''
-            export test :: debug(`foo`)
-            ''', 
-            {
-                'foo': {
-                    'value': 'foo',
-                },
-                '  foo  ': {
-                    'value': 'foo',
-                },
-                '': Exception,
-                'foobar': Exception,
-                'foo bar': Exception,
-            }
-        )
+    # def test_debug(self):
+    #     self.run_parser(
+    #         'Debug',
+    #         '''
+    #         export test :: debug(`foo`)
+    #         ''', 
+    #         {
+    #             'foo': {
+    #                 'value': 'foo',
+    #             },
+    #             '  foo  ': {
+    #                 'value': 'foo',
+    #             },
+    #             '': Exception,
+    #             'foobar': Exception,
+    #             'foo bar': Exception,
+    #         }
+    #     )
 
     def test_parser_names(self):
         self.run_parser(
-            'Sequence Parser',
+            'Named Parsers',
             '''
-            export number :: r`\\d+`
             export test :: [`foo`: first] [`bar`: second]
             ''',
             {
-                'foo bar': '',
-                '    foo        bar    ': '',
-                'foobar': '',
+                'foo bar': 'bar',
+                '    foo        bar    ': 'bar',
+                'foobar': 'bar',
                 'foo': Exception,
                 'bar': Exception,
                 'foo bar baz': Exception,
@@ -178,9 +201,9 @@ class TestBasicPrograms(unittest.TestCase):
             }
             ''',
             {
-                ' foo bar ': '',
-                ' baz bat ': '',
-                ' default ': '',
+                ' foo bar ': 'bar',
+                ' baz bat ': 'bat',
+                ' default ': 'default',
                 ' foo ': Exception,
                 ' foo default ': Exception,
                 ' baz ': Exception,
@@ -204,11 +227,56 @@ class TestBasicPrograms(unittest.TestCase):
             }
             ''',
             {
-                ' foo bar baz ': '',
-                ' x y z ': '',
+                ' foo bar baz ': 'baz',
+                ' x y z ': 'z',
                 ' foo y z ': Exception,
                 ' bar baz ': Exception,
                 ' x y ': Exception,
+            }
+        )
+
+    def test_values(self):
+        self.run_parser(
+            'Value Parser',
+            '''
+            export test :: [`foo`: foovalue]
+                as struct FooNode { value: foovalue }
+            ''',
+            {
+                'foo': {
+                    '_type': 'FooNode',
+                    'value': 'foo'
+                }
+            }
+        )
+
+    def test_multi_parsers(self):
+        self.run_parser(
+            'Value Parser',
+            '''
+            num :: r`\\d+`
+            add :: num `+` num 
+            export test :: add
+            ''',
+            {
+                '1 + 2': '2'
+            }
+        )
+
+    def test_basic_fraciton_parser(self):
+        self.run_parser(
+            'Value Parser',
+            '''
+            integer :: r`\\d+`
+            export test :: [integer: num] `/` [integer: den]
+                as struct Node { numerator: num, denominator: den }
+            ''',
+            {
+                '123 / 456': {
+                    '_type': 'Node',
+                    'numerator': '123',
+                    'denominator': '456'
+                }
             }
         )
 
