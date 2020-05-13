@@ -6,6 +6,8 @@
 class Parser {
     __tokens = {
 {{ tokens }}
+        "__whitespace": /^(?:\s|\n)+/,
+        "__unknown": /^[^\s\n]+/,
     }
 
     __tokenize(s) {
@@ -24,7 +26,7 @@ class Parser {
                     continue nextToken;
                 }
             }
-            throw Error(`Unknown token: ${s}`)
+            throw Error(`Internal error (this should never happen): ${s}`)
         }
         return tokens;
     }
@@ -38,6 +40,9 @@ class Parser {
         let token = this.tokens[this.index];
         if (token === undefined) {
             throw Error('Unexpected end of file.')
+        }
+        if (token.type === '___unknown') {
+            throw Error(`Unknown token: "${token.value}"`)
         }
         this.index++;
         return token;
@@ -61,7 +66,20 @@ class Parser {
     }
 
     // Parser helper functions
+    __try(parser) {
+        // Returns the parser result, or null if the parser failed.
+        let backup = this.index;
+        try {
+            return parser.call(this);
+        }
+        catch (e) {
+            this.index = backup;
+            return null;
+        }
+    }
+
     __test(parser) {
+        // Returns true if the parser would succeed, false if it would not.
         let backup = this.index;
         try {
             parser.call(this);

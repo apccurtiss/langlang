@@ -32,7 +32,7 @@ process.stdin.on('readable', () => {
         process.exit(0);
     }
     catch(e) {
-        console.error(e);
+        console.error(e.message);
         process.exit(1);
     }
 });'''
@@ -58,10 +58,12 @@ class TestBasicPrograms(unittest.TestCase):
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
 
-                stdout, stderr = compiler.communicate(input.encode(), timeout=0.5)
+                stdout, stderr = compiler.communicate(input.encode(), timeout=1)
 
                 if expected == Exception:
                     self.assertNotEqual(compiler.returncode, 0, 'Parser should have returned non-zero')
+                elif isinstance(expected, Exception):
+                    self.assertEqual(stderr.decode().rstrip('\n'), str(expected))
                 else:
                     self.assertEqual(compiler.returncode, 0, 'Parser should have returned 0')
                     def are_equal(value1, value2):
@@ -232,6 +234,19 @@ class TestBasicPrograms(unittest.TestCase):
                 ' foo y z ': Exception,
                 ' bar baz ': Exception,
                 ' x y ': Exception,
+            }
+        )
+
+    def test_basic_exceptions(self):
+        self.run_parser(
+            'Value Parser',
+            '''
+            export test :: `foo` `bar` `baz` ! "Fooerror!"
+            ''',
+            {
+                'foo bar baz': 'baz',
+                'foo bar bar': Exception('Fooerror!'),
+                'foo bar quux': Exception('Fooerror!'),
             }
         )
 

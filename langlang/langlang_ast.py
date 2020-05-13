@@ -1,5 +1,5 @@
 import re
-from typing import Any, Dict, List, Mapping, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 class Node:
     def __init__(self, *pargs, **kwargs):
@@ -20,7 +20,7 @@ class Sequence(Node):
         self.expr1 = expr1
         self.expr2 = expr2
 
-class Match(Node):
+class Peek(Node):
     def __init__(self, cases: List[Tuple[Node, Node]]):
         self.cases = cases
 
@@ -49,10 +49,15 @@ class Named(Node):
         self.expr = expr
         self.name = name
 
-class ParserExpr(Node):
-    def __init__(self, parser_expr: Node, as_expr: Node):
-        self.parser_expr = parser_expr
-        self.as_expr = as_expr
+class Error(Node):
+    def __init__(self, parser: Node, message: str):
+        self.parser = parser
+        self.message = message
+
+class As(Node):
+    def __init__(self, parser: Node, result: Node):
+        self.parser = parser
+        self.result = result
 
 class Debug(Node):
     def __init__(self, expr: Node):

@@ -88,9 +88,9 @@ def parse_regex_parser(tokens: TokenStream) -> ast.Node:
     value = parser.value[2:-1].replace('\\`', '`')
     return ast.RegexParser(value=value)
 
-def parse_name(tokens: TokenStream) -> ast.Node:
+def parse_named_parser(tokens: TokenStream) -> ast.Node:
     need('obracket')(tokens)
-    expr = parse_parser_expr(tokens)
+    expr = parse_suffix(tokens)
     need('colon')(tokens)
     name = need('ident')(tokens)
     need('cbracket')(tokens)
@@ -99,28 +99,39 @@ def parse_name(tokens: TokenStream) -> ast.Node:
 def parse_debug(tokens: TokenStream) -> ast.Node:
     need('kw_debug')(tokens)
     need('oparen')(tokens)
-    expr = parse_parser_expr(tokens)
+    expr = parse_suffix(tokens)
     need('cparen')(tokens)
     return ast.Debug(expr=expr)
-
-def parse_atom(tokens: TokenStream) -> ast.Node:
-    return first_of(parse_literal_parser, parse_regex_parser, parse_var, parse_name, parse_debug, parse_peek)(tokens)
 
 def parse_peek(tokens: TokenStream) -> ast.Node:
     def parse_case(tokens: TokenStream) -> Tuple[Optional[ast.Node], ast.Node]:
         need('kw_case')(tokens)
         case = first_of(
             lambda tokens: need('under')(tokens) and None,
-            parse_parser_expr)(tokens)
+            parse_suffix)(tokens)
         need('arrow')(tokens)
-        parser = parse_parser_expr(tokens)
+        parser = parse_suffix(tokens)
         return (case, parser)
 
     need('kw_peek')(tokens)
     need('obrace')(tokens)
     cases = list_of(parse_case, minimum=1)(tokens)
     need('cbrace')(tokens)
-    return ast.Match(cases=cases)
+
+    return ast.Peek(cases=cases)
+
+# Order of operations, from least binding to most binding:
+# 1. Suffix expression (e.g. `foo` as "bar")
+# 2. Sequence expression (e.g. `foo` `bar` `baz`)
+# 3. Atoms (e.g. `foo`, [`foo`: foo], peek { case `foo` => `foo` }, etc.)
+def parse_atom(tokens: TokenStream) -> ast.Node:
+    return first_of(
+        parse_literal_parser,
+        parse_regex_parser,
+        parse_var,
+        parse_named_parser,
+        parse_debug,
+        parse_peek)(tokens)
 
 def parse_sequence(tokens: TokenStream) -> ast.Node:
     expr1 = parse_atom(tokens)
@@ -130,14 +141,37 @@ def parse_sequence(tokens: TokenStream) -> ast.Node:
     else:
         return expr1
 
-def parse_parser_expr(tokens: TokenStream) -> ast.Node:
+def parse_suffix(tokens: TokenStream) -> ast.Node:
     def parse_as(tokens: TokenStream) -> ast.Node:
         need('kw_as')(tokens)
         return parse_value(tokens)
 
-    parser_expr = parse_sequence(tokens)
-    as_expr = optional(parse_as)(tokens)
-    return ast.ParserExpr(parser_expr=parser_expr, as_expr=as_expr)
+    def parse_error(tokens: TokenStream) -> str:
+        need('bang')(tokens)
+        return parse_string(tokens).value
+
+    # Get the initial expression...
+    ret = parse_sequence(tokens)
+
+    # ...then keep popping suffixes forever...
+    while True:
+        result = optional(parse_as)(tokens)
+        if result:
+            ret = ast.As(parser=ret, result=result)
+            continue
+
+        error_message = optional(parse_error)(tokens)
+        if error_message:
+            ret = ast.Error(parser=ret, message=error_message)
+            continue
+
+        # ...until they're all gone.
+        break
+
+    return ret
+
+def parse_parser(tokens: TokenStream) -> ast.Node:
+    return parse_suffix(tokens)
 
 def parse_def(tokens: TokenStream) -> ast.Node:
     if peek_type('kw_export')(tokens):
@@ -147,7 +181,7 @@ def parse_def(tokens: TokenStream) -> ast.Node:
 
     name = need('ident')(tokens).value
     need('doublecolon')(tokens)
-    expr = parse_parser_expr(tokens)
+    expr = parse_suffix(tokens)
     return ast.Def(name=name, expr=expr, export=export is not None)
 
 def parse_statement(tokens: TokenStream) -> ast.Node:
@@ -181,11 +215,11 @@ def parse_struct(tokens: TokenStream) -> ast.Node:
     need('cbrace')(tokens)
     return ast.Struct(name, mapping)
 
-def parse_string(tokens: TokenStream) -> ast.Node:
+def parse_string(tokens: TokenStream) -> ast.LitStr:
     value = need('lit_string')(tokens).value
     return ast.LitStr(value=value)
 
-def parse_file(tokens: TokenStream) -> ast.Node:
+def parse_file(tokens: TokenStream) -> ast.StatementSequence:
     return ast.StatementSequence(stmts=list_of(parse_statement)(tokens))
 
 def parse(tokens: TokenStream) -> ast.Node:

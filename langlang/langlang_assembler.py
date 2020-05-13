@@ -40,9 +40,7 @@ class Mode(enum.Enum):
 
 class Context:
     def __init__(self):
-        self.tokens = {
-            '__whitespace': r'/^(?:\s|\n)+/'
-        }
+        self.tokens = {}
         self.storage_method: Union[Type[Ignore], Type[Return], Var] = Ignore
         self.exports: Set[str] = set()
         self.scope: Set[str] = set()
@@ -76,20 +74,22 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
         e2 = assemble_into_js(node.expr2, ctx, indent=indent)
         return f'{e1}\n{e2}'
 
-    elif isinstance(node, ast.Match):
+    elif isinstance(node, ast.Peek):
         original_storage_method = ctx.storage_method
         
         statements = ''
         for i, (cond_node, parser_node) in enumerate(node.cases, 1):
             indent_1 = indent + INDENT_SIZE
 
+            # This won't happen in the default case.
             if cond_node:
                 ctx.storage_method = Ignore
                 cond = assemble_into_js(cond_node, ctx, indent=indent_1 + INDENT_SIZE)
 
-            ctx.storage_method = Return
+            ctx.storage_method = original_storage_method
             parser = assemble_into_js(parser_node, ctx, indent=indent_1 + INDENT_SIZE)
 
+            # Neither will this.
             if cond_node:
                 statement = (
                     f'{indent_1}function __test_case_{i}() {{\n'
@@ -118,18 +118,29 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
         ctx.storage_method = Var(node.name)
         return f'{assemble_into_js(node.expr, ctx, indent=indent)}{suffix}'
 
-    elif isinstance(node, ast.ParserExpr):
-        if node.as_expr:
-            original_storage_method = ctx.storage_method
-            ctx.storage_method = Ignore
-            ctx.mode = Mode.parser
-            parser_expr = assemble_into_js(node.parser_expr, ctx, indent=indent)
-            ctx.storage_method = original_storage_method
-            ctx.mode = Mode.value
-            as_expr = assemble_into_js(node.as_expr, ctx, indent=indent)
-            return f'{parser_expr}\n{as_expr}'
-        else:
-            return assemble_into_js(node.parser_expr, ctx, indent=indent)
+    elif isinstance(node, ast.As):
+        original_storage_method = ctx.storage_method
+
+        ctx.storage_method = Ignore
+        parser = assemble_into_js(node.parser, ctx, indent=indent)
+
+        ctx.storage_method = original_storage_method
+        ctx.mode = Mode.value
+        result = assemble_into_js(node.result, ctx, indent=indent)
+        ctx.mode = Mode.parser
+
+        return f'{parser}\n{result}'
+
+    elif isinstance(node, ast.Error):
+        indent1 = indent + INDENT_SIZE
+
+        parser = assemble_into_js(node.parser, ctx, indent=indent1)
+
+        return (f'{indent}try {{\n'
+                f'{parser}\n'
+                f'{indent}}} catch (e) {{\n'
+                f'{indent1}throw Error({node.message})\n'
+                f'{indent}}}')
 
     elif isinstance(node, ast.Debug):
         if ctx.storage_method is Ignore:

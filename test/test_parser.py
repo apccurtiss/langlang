@@ -3,18 +3,19 @@ import unittest
 from langlang import langlang_ast as ast
 from langlang.langlang_tokenizer import tokenize
 from langlang.langlang_parser import (
-    parse_literal_parser,
-    parse_regex_parser,
-    parse_name,
-    parse_debug,
     parse_atom,
-    parse_sequence,
+    parse_debug,
     parse_def,
     parse_file,
-    parse_parser_expr,
+    parse_literal_parser,
+    parse_named_parser,
+    parse_parser,
     parse_peek,
+    parse_regex_parser,
+    parse_sequence,
     parse_string,
     parse_struct,
+    parse_suffix,
     parse_value
 )
 
@@ -36,10 +37,10 @@ class TestParser(unittest.TestCase):
         self.assertRaises(Exception, parse_regex_parser, tokenize(r''))
 
     def test_parse_name(self):
-        parse_name(tokenize(r'[`foo`: bar]'))
-        parse_name(tokenize(r'[`foo` `bar` `baz`: bat]'))
-        self.assertRaises(Exception, parse_name, tokenize(r'[`foo`]'))
-        self.assertRaises(Exception, parse_name, tokenize(r'`foo`: bar'))
+        parse_named_parser(tokenize(r'[`foo`: bar]'))
+        parse_named_parser(tokenize(r'[`foo` `bar` `baz`: bat]'))
+        self.assertRaises(Exception, parse_named_parser, tokenize(r'[`foo`]'))
+        self.assertRaises(Exception, parse_named_parser, tokenize(r'`foo`: bar'))
 
     def test_parse_debug(self):
         parse_debug(tokenize(r'debug(`foo`)'))
@@ -55,17 +56,24 @@ class TestParser(unittest.TestCase):
         parse_sequence(tokenize(r'`foo` `bar` `baz` `bat`'))
         parse_sequence(tokenize(r'`foo` debug(`bar`) [r`baz`: x]  `bat`'))
 
-    def test_basic_as(self):
-        parse_parser_expr(tokenize(r'[`foo`: bar] as bar'))
-        parse_parser_expr(tokenize(r'`foo` [`bar`: baz] `bat` as baz'))
+    def test_basic_suffixes(self):
+        parse_suffix(tokenize(r'[`foo`: bar] as bar'))
+        parse_suffix(tokenize(r'`foo` [`bar`: baz] `bat` as baz'))
+        parse_suffix(tokenize(r'[`foo`: bar] ! "Something went wrong!"'))
+        parse_suffix(tokenize(r'`foo` [`bar`: baz] `bat` ! "Something went wrong!"'))
 
     def test_parse_def(self):
         parse_def(tokenize(r'foo :: `bar` `baz`'))
         parse_def(tokenize(r'export foo :: `bar` `baz`'))
 
-    def test_parse_parser_expr(self):
-        self.assertIsInstance(parse_parser_expr(tokenize(r'`foo` `bar`')).parser_expr, ast.Sequence)
-        self.assertIsInstance(parse_parser_expr(tokenize(r'`foo`')).parser_expr, ast.LiteralParser)
+    def test_parse_parser(self):
+        self.assertIsInstance(parse_parser(tokenize(r'`foo`')), ast.LiteralParser)
+        self.assertIsInstance(parse_parser(tokenize(r'r`foo`')), ast.RegexParser)
+        self.assertIsInstance(parse_parser(tokenize(r'foo')), ast.Var)
+        self.assertIsInstance(parse_parser(tokenize(r'peek { case `foo` => `foo` }')), ast.Peek)
+        self.assertIsInstance(parse_parser(tokenize(r'`foo` `bar`')), ast.Sequence)
+        self.assertIsInstance(parse_parser(tokenize(r'`foo` as "bar"')), ast.As)
+        self.assertIsInstance(parse_parser(tokenize(r'`foo` ! "Error!"')), ast.Error)
 
     def test_parse_peek(self):
         parse_peek(tokenize(r'peek { case `foo` => `bar` }'))
@@ -102,8 +110,8 @@ class TestParser(unittest.TestCase):
         parse_value(tokenize(r'struct { foo : bar }'))
         parse_value(tokenize(r'struct FooNode { value: foovalue }'))
 
-    def test_complex_as(self):
-        parse_parser_expr(tokenize(r'[`foo`: foovalue] as struct FooNode { value: foovalue }'))
+    def test_as(self):
+        parse_parser(tokenize(r'[`foo`: foovalue] as struct FooNode { value: foovalue }'))
         parse_file(tokenize(r'export test :: [`foo`: foovalue] as struct FooNode { value: foovalue }'))
 
     def test_parse_file(self):
