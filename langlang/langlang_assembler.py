@@ -6,7 +6,7 @@ from typing import Any, Dict, Set, Tuple, Type, Union
 
 from jinja2 import Template
 
-from . import langlang_ast as ast
+import langlang_ast as ast
 
 RUNTIME_TEMPLATE_FILE = 'runtime.js'
 INDENT_SIZE = '    '

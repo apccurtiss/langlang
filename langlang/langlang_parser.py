@@ -1,8 +1,8 @@
 import re
 from typing import Any, Callable, Dict, Generic, List, NewType, Optional, Tuple, Type, TypeVar, Union
 
-from . import langlang_ast as ast
-from .langlang_tokenizer import TokenStream
+import langlang_ast as ast
+from langlang_tokenizer import TokenStream
 
 # In plain English - takes a list of tokens, returns a node
 Parser = Callable[[TokenStream], Any]

@@ -5,9 +5,9 @@ import re
 import sys
 from typing import Dict, List
 
-from .langlang_tokenizer import tokenize 
-from .langlang_parser import parse
-from .langlang_assembler import assemble
+from langlang_tokenizer import tokenize 
+from langlang_parser import parse
+from langlang_assembler import assemble
 
 
 def compile(source):
