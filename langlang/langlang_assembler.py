@@ -52,14 +52,14 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
     if isinstance(node, ast.LiteralParser):
         # Replace with literal regex that does the same thing.
         token_name = f'lit_{node.value}'
-        escaped_re = re.sub(r"([-/[\]{}()*+?.,\\^$|#\\s])", r"\\\1", node.value)
+        escaped_re = re.sub(r'([-/[\]{}()*+?.,\\^$|#\\s])', r'\\\1', node.value)
         as_re = f'/^{escaped_re}/'
         ctx.tokens[token_name] = as_re
         return f'{indent}{ctx.storage_method.as_prefix()}this.__require("{token_name}").value;'
 
     elif isinstance(node, ast.RegexParser):
-        token_name = f're_{node.value}'
-        escaped_re = node.value.replace('/', '\\/')
+        token_name = node.value.replace('"', '\\"')
+        escaped_re = node.value.replace('/',  '\\/')
         as_re = f'/^{escaped_re}/'
         ctx.tokens[token_name] = as_re
         return f'{indent}{ctx.storage_method.as_prefix()}this.__require("{token_name}").value;'
