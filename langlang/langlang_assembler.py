@@ -8,11 +8,15 @@ from jinja2 import Template
 
 import langlang_ast as ast
 
+RUNTIME_DIR = 'runtimes'
 RUNTIME_TEMPLATE_FILE = 'runtime.js'
-INDENT_SIZE = '    '
+STANDALONE_TEMPLATE_FILE = 'standalone_runtime.js'
 
 current_dir = os.path.dirname(__file__)
-runtime_template_filepath = os.path.join(current_dir, RUNTIME_TEMPLATE_FILE)
+runtime_template_filepath = os.path.join(current_dir, RUNTIME_DIR, RUNTIME_TEMPLATE_FILE)
+standalone_template_filepath = os.path.join(current_dir, RUNTIME_DIR, STANDALONE_TEMPLATE_FILE)
+
+INDENT_SIZE = '    '
 
 
 # Result storage methods
@@ -33,9 +37,9 @@ class Var:
     def as_prefix(self):
         return f'let {self.name} = '
 
-# Modes
-class Mode(enum.Enum):
+class LLType(enum.Enum):
     parser = 1
+    # TODO: Figure out if we should expand this to include specific value types.
     value = 2
 
 class Context:
@@ -43,9 +47,7 @@ class Context:
         self.tokens = {}
         self.storage_method: Union[Type[Ignore], Type[Return], Var] = Ignore
         self.exports: Set[str] = set()
-        self.scope: Set[str] = set()
-        self.mode: Mode = Mode.parser
-        
+        self.scope: Dict[str, LLType] = {}
 
 def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
     # Basic parsers
@@ -116,6 +118,7 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
             suffix = f'\n;{indent}{ctx.storage_method.as_prefix()}{node.name}'
 
         ctx.storage_method = Var(node.name)
+        ctx.scope[node.name] = LLType.value
         return f'{assemble_into_js(node.expr, ctx, indent=indent)}{suffix}'
 
     elif isinstance(node, ast.As):
@@ -125,9 +128,7 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
         parser = assemble_into_js(node.parser, ctx, indent=indent)
 
         ctx.storage_method = original_storage_method
-        ctx.mode = Mode.value
         result = assemble_into_js(node.result, ctx, indent=indent)
-        ctx.mode = Mode.parser
 
         return f'{parser}\n{result}'
 
@@ -164,9 +165,10 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
         if node.name not in ctx.scope:
             raise Exception(f'"{node.name}" is not defined!')
 
-        if ctx.mode == Mode.parser:
+        lltype = ctx.scope[node.name]
+        if lltype == LLType.parser:
             return f'{indent}{ctx.storage_method.as_prefix()}this.{node.name}()'
-        elif ctx.mode == Mode.value:
+        elif lltype == LLType.value:
             return f'{indent}{ctx.storage_method.as_prefix()}{node.name}'
         else:
             raise Exception(f'Unknown mode: "{ctx.mode}"')
@@ -188,10 +190,16 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
     elif isinstance(node, ast.Def):
         if node.export:
             ctx.exports.add(node.name)
-        ctx.scope.add(node.name)
+        ctx.scope[node.name] = LLType.parser
+
+        # We copy the scope and restore it later so local variables don't pollute the global scope.
+        # TODO: Find a cleaner way of doing this.
+        scope_backup = copy.copy(ctx.scope)
         ctx.storage_method = Return
+        assembled_js = assemble_into_js(node.expr, ctx, indent=indent + INDENT_SIZE)
+        ctx.scope = scope_backup
         return (f'{indent}{node.name}() {{\n'
-                f'{assemble_into_js(node.expr, ctx, indent=indent + INDENT_SIZE)}\n'
+                f'{assembled_js}\n'
                 f'{indent}}}')
     
     else:
@@ -199,7 +207,7 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
 
 
 # Dunno' if this is a misnomer, as it's not assembly.
-def assemble(ast):
+def assemble(ast, standalone_parser=None):
     context = Context()
 
     # Statefully changes context
@@ -208,7 +216,7 @@ def assemble(ast):
     with open(runtime_template_filepath) as f:
         output_template = Template(f.read())
 
-    return output_template.render(
+    output = output_template.render(
         help_url='github.com/apccurtiss/langlang',
         parsers=parsers,
         exports='\n'.join(
@@ -216,3 +224,14 @@ def assemble(ast):
                 for name in context.exports),
         tokens='\n'.join(f'        "{k}": {v},' for k, v in context.tokens.items()),
     )
+
+    if standalone_parser:
+        if standalone_parser not in context.exports:
+            raise Exception(f'The parser "{standalone_parser}" is not exported.')
+
+        with open(standalone_template_filepath) as f:
+            standalone_template = Template(f.read())
+
+        output += standalone_template.render(entrypoint=standalone_parser)
+
+    return output
