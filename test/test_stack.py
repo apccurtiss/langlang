@@ -40,7 +40,7 @@ process.stdin.on('readable', () => {
 
 class TestBasicPrograms(unittest.TestCase):
     def run_parser(self, name: str, source: str, tests: Dict[str, str], entrypoint='test'):
-        parser = compile(source)
+        parser = compile(source, None)
         filepath = ''.join(c for c in name.lower() if c in string.ascii_letters) + '.js'
         
         with open(filepath, 'w') as f:

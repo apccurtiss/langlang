@@ -37,16 +37,17 @@ def list_of(parser: Parser, minimum: int = 0, sep: Parser = None) -> Parser:
 
 def first_of(*parsers: Parser) -> Parser:
     def ret(tokens: TokenStream) -> ast.Node:
+        err = None
         for parser in parsers:
             backup = tokens.index
             try:
                 # Statefully changes the index
                 return parser(tokens)
-            except:
+            except Exception as e:
+                err = e
                 tokens.index = backup
 
-        raise Exception(f'Unable to parse input with any of these parsers: '
-                        f'[{", ".join([p.__name__ for p in parsers])}]')
+        raise err
 
     return ret
 
@@ -220,10 +221,12 @@ def parse_string(tokens: TokenStream) -> ast.LitStr:
     return ast.LitStr(value=value)
 
 def parse_file(tokens: TokenStream) -> ast.StatementSequence:
-    return ast.StatementSequence(stmts=list_of(parse_statement)(tokens))
+    stmts = list_of(parse_statement)(tokens)
+    if not tokens.empty():
+        # This should fail, but we're doing it for the error message.
+        parse_statement(tokens)
+
+    return ast.StatementSequence(stmts=stmts)
 
 def parse(tokens: TokenStream) -> ast.Node:
-    ret = parse_file(tokens)
-    if not tokens.empty():
-        raise Exception(f'Remaining tokens: {tokens.remaining()}')
-    return ret
+    return parse_file(tokens)

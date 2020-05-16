@@ -9,18 +9,22 @@ from typing import Dict, List, Optional
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler 
 
-from langlang_tokenizer import tokenize 
+from langlang_tokenizer import tokenize
 from langlang_parser import parse
 from langlang_assembler import assemble
 
 
-def compile(args):
+def compile(source, entrypoint=None):
+    tokens = tokenize(source)
+    ast = parse(tokens)
+    return assemble(ast, standalone_parser_entrypoint=entrypoint)
+
+
+def run_compiler(args):
     with open(args.filename) as f:
         source = f.read()
 
-    tokens = tokenize(source)
-    ast = parse(tokens)
-    output = assemble(ast, standalone_parser=args.entrypoint)
+    output = compile(source, args.entrypoint)
 
     outfile = args.outfile or f'{os.path.splitext(args.filename)[0]}.js'
     with open(outfile, 'w') as f:
@@ -36,7 +40,7 @@ def watch(args):
         def on_any_event(event):
             if event.event_type == 'modified' and event.src_path == filename: 
                 print(f'Recompiling {filename}')
-                compile(args)
+                run_compiler(args)
 
     watchpath = os.path.dirname(filename)
 
@@ -70,7 +74,7 @@ def main():
     if args.watch:
         watch(args)
     else:
-        compile(args)
+        run_compiler(args)
 
 if __name__ == '__main__':
     main()

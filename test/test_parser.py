@@ -1,8 +1,9 @@
 import unittest
 
-from langlang import langlang_ast as ast
-from langlang.langlang_tokenizer import tokenize
-from langlang.langlang_parser import (
+
+import langlang_ast as ast
+from langlang_tokenizer import tokenize
+from langlang_parser import (
     parse_atom,
     parse_debug,
     parse_def,

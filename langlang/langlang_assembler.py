@@ -9,11 +9,11 @@ from jinja2 import Template
 import langlang_ast as ast
 
 RUNTIME_DIR = 'runtimes'
-RUNTIME_TEMPLATE_FILE = 'runtime.js'
+MAIN_TEMPLATE_FILE = 'runtime.js'
 STANDALONE_TEMPLATE_FILE = 'standalone_runtime.js'
 
 current_dir = os.path.dirname(__file__)
-runtime_template_filepath = os.path.join(current_dir, RUNTIME_DIR, RUNTIME_TEMPLATE_FILE)
+runtime_template_filepath = os.path.join(current_dir, RUNTIME_DIR, MAIN_TEMPLATE_FILE)
 standalone_template_filepath = os.path.join(current_dir, RUNTIME_DIR, STANDALONE_TEMPLATE_FILE)
 
 INDENT_SIZE = '    '
@@ -207,7 +207,7 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
 
 
 # Dunno' if this is a misnomer, as it's not assembly.
-def assemble(ast, standalone_parser=None):
+def assemble(ast, standalone_parser_entrypoint=None):
     context = Context()
 
     # Statefully changes context
@@ -225,13 +225,13 @@ def assemble(ast, standalone_parser=None):
         tokens='\n'.join(f'        "{k}": {v},' for k, v in context.tokens.items()),
     )
 
-    if standalone_parser:
-        if standalone_parser not in context.exports:
-            raise Exception(f'The parser "{standalone_parser}" is not exported.')
+    if standalone_parser_entrypoint:
+        if standalone_parser_entrypoint not in context.exports:
+            raise Exception(f'The parser "{standalone_parser_entrypoint}" is not exported.')
 
         with open(standalone_template_filepath) as f:
             standalone_template = Template(f.read())
 
-        output += standalone_template.render(entrypoint=standalone_parser)
+        output += standalone_template.render(entrypoint=standalone_parser_entrypoint)
 
     return output
