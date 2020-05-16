@@ -250,6 +250,23 @@ class TestBasicPrograms(unittest.TestCase):
             }
         )
 
+    def test_multiple_exceptions(self):
+        self.run_parser(
+            'Value Parser',
+            '''
+            export test :: `foo` ! "Fooerror!"
+                           `bar` ! "Barerror!"
+                           `baz` ! "Bazerror!"
+            ''',
+            {
+                'foo bar baz': 'baz',
+                'x bar baz': Exception('Fooerror!'),
+                'foo x baz': Exception('Barerror!'),
+                'foo bar x': Exception('Bazerror!'),
+                'x x x': Exception('Fooerror!'),
+            }
+        )
+
     def test_values(self):
         self.run_parser(
             'Value Parser',

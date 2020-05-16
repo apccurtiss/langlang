@@ -122,9 +122,9 @@ def parse_peek(tokens: TokenStream) -> ast.Node:
     return ast.Peek(cases=cases)
 
 # Order of operations, from least binding to most binding:
-# 1. Suffix expression (e.g. `foo` as "bar")
+# 1. As expression (e.g. `foo` as "bar")
 # 2. Sequence expression (e.g. `foo` `bar` `baz`)
-# 3. Atoms (e.g. `foo`, [`foo`: foo], peek { case `foo` => `foo` }, etc.)
+# 3. Error expressions (e.g. `foo` ! "Fooerror!")
 def parse_atom(tokens: TokenStream) -> ast.Node:
     return first_of(
         parse_literal_parser,
@@ -134,8 +134,21 @@ def parse_atom(tokens: TokenStream) -> ast.Node:
         parse_debug,
         parse_peek)(tokens)
 
+def parse_error(tokens: TokenStream) -> ast.Node:
+    def parse_error(tokens: TokenStream) -> str:
+        need('bang')(tokens)
+        return parse_string(tokens).value
+
+    ret = parse_atom(tokens)
+
+    error_message = optional(parse_error)(tokens)
+    if error_message:
+        ret = ast.Error(parser=ret, message=error_message)
+
+    return ret
+
 def parse_sequence(tokens: TokenStream) -> ast.Node:
-    expr1 = parse_atom(tokens)
+    expr1 = parse_error(tokens)
     expr2 = optional(parse_sequence)(tokens)
     if expr2:
         return ast.Sequence(expr1=expr1, expr2=expr2)
@@ -147,27 +160,11 @@ def parse_suffix(tokens: TokenStream) -> ast.Node:
         need('kw_as')(tokens)
         return parse_value(tokens)
 
-    def parse_error(tokens: TokenStream) -> str:
-        need('bang')(tokens)
-        return parse_string(tokens).value
-
-    # Get the initial expression...
     ret = parse_sequence(tokens)
 
-    # ...then keep popping suffixes forever...
-    while True:
-        result = optional(parse_as)(tokens)
-        if result:
-            ret = ast.As(parser=ret, result=result)
-            continue
-
-        error_message = optional(parse_error)(tokens)
-        if error_message:
-            ret = ast.Error(parser=ret, message=error_message)
-            continue
-
-        # ...until they're all gone.
-        break
+    result = optional(parse_as)(tokens)
+    if result:
+        ret = ast.As(parser=ret, result=result)
 
     return ret
 
