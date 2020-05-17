@@ -1,30 +1,45 @@
 Langlang
 ========
 
-Langlang (the language language) is a small programming language meant to make it easy to write parsers for other languages. It was built for the C.js project, and as such it only targets JavaScript - if you have another preferred target language, let me know. They're not that hard to implement.
+Langlang (the language language) is a small programming language meant to make it easy to write parsers for new languages. It compiles to JavaScript, and some day maybe other languages if I get around to implementing them.
 
 Usage
 -----
 
-Running the compiler:
-```python langlang.py myinput.ll -o myoutput.js```
+See the [getting started page](./getting_started.md) for details on the language. 
 
-Writing a langlang file:
-```
-// TODO: Examples (in the mean time, check out the tests for code snippits)
-```
+Running the compiler on a langlang file will generate a library that can be included by your code:
+```$ python langlang.py myfile.ll
+Writing output to ./myfile.js
+$ node
+> var parser = require('./myfile.js')
+> parser.add('1 + 2')
+{ left: '1', right: '2', _type: 'Add' }```
+
+If you want a stand-alone "binary" for testing purposes or whatever, you can specify an parser that will take its input from stdin and print the output as JSON:
+```$ python langlang.py myfile.ll --stdin add
+Writing output to ./myfile.js
+$ echo "1 + 2" | node myfile.js
+{
+  "left": "1",
+  "right": "2",
+  "_type": "Add"
+}```
 
 FAQ
 ---
 
-*There's, like, a billion parser generators. Why does this exist?*
-I needed something that allowed for fine-graned controls on the error messages and recovery patterns. C.js targets beginners, so those messages needed to be easy to understand.
+*There are, like, a billion parser generators. Why does this exist?*
+I needed something that allowed for fine-graned controls on the error messages and recovery patterns, because parser error messages suck in most languages and we as a society can do better.
 
 *If this "langlang" is so great, why isn't it written in itself?*
-One day, rediculous straw man. One day...
+One day it will target Python and this will happen. One day...
+
+*This doesn't have the "fine grained" features you said earlier in the FAQ. What gives?*
+It's a work in progress. Even the syntax changes a couple times a week.
 
 *How can I contribute?*
-My emails is in [my bio](https://github.com/apccurtiss). If anyone's interested in contributing, send me a message and I'll add contribution directions. I haven't yet because they take time, which is scarse.
+My emails is in [my bio](https://github.com/apccurtiss). If anyone's interested in contributing, send me a message and I'll add contribution directions. I haven't yet because they take time and I'm guessing nobody will need them.
 
 *I want changes, but I don't want to contribute.*
 File an issue and I'll see what I can do.
