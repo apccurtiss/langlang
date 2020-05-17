@@ -9,22 +9,26 @@ Usage
 See the [getting started page](./getting_started.md) for details on the language. 
 
 Running the compiler on a langlang file will generate a library that can be included by your code:
-```$ python langlang.py myfile.ll
+```
+$ python langlang.py myfile.ll
 Writing output to ./myfile.js
 $ node
 > var parser = require('./myfile.js')
 > parser.add('1 + 2')
-{ left: '1', right: '2', _type: 'Add' }```
+{ left: '1', right: '2', _type: 'Add' }
+```
 
 If you want a stand-alone "binary" for testing purposes or whatever, you can specify an parser that will take its input from stdin and print the output as JSON:
-```$ python langlang.py myfile.ll --stdin add
+```
+$ python langlang.py myfile.ll --stdin add
 Writing output to ./myfile.js
 $ echo "1 + 2" | node myfile.js
 {
   "left": "1",
   "right": "2",
   "_type": "Add"
-}```
+}
+```
 
 FAQ
 ---
