@@ -33,17 +33,17 @@ $ echo "1 + 2" | node myfile.js
 FAQ
 ---
 
-*There are, like, a billion parser generators. Why does this exist?*
-I needed something that allowed for fine-graned controls on the error messages and recovery patterns, because parser error messages suck in most languages and we as a society can do better.
+*There are, like, a billion parser generators. Why does this exist?*  
+I needed something that allowed for fine-graned controls on the error messages and recovery patterns, because most parser error messages suck and we as a society can do better.
 
-*If this "langlang" is so great, why isn't it written in itself?*
+*If this "langlang" is so great, why isn't it written in itself?*  
 One day it will target Python and this will happen. One day...
 
-*This doesn't have the "fine grained" features you said earlier in the FAQ. What gives?*
+*This doesn't have the "fine grained" features you said earlier in the FAQ. What gives?*  
 It's a work in progress. Even the syntax changes a couple times a week.
 
-*How can I contribute?*
-My emails is in [my bio](https://github.com/apccurtiss). If anyone's interested in contributing, send me a message and I'll add contribution directions. I haven't yet because they take time and I'm guessing nobody will need them.
+*How can I contribute?*  
+My emails is in [my bio](https://github.com/apccurtiss). If anyone's interested in contributing, send me a message and I'll add contribution directions. I haven't yet because they take time and I'm guessing nobody will want them.
 
-*I want changes, but I don't want to contribute.*
+*I want changes, but I don't want to contribute.*  
 File an issue and I'll see what I can do.
