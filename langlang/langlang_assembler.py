@@ -89,10 +89,10 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
                 cond = assemble_into_js(cond_node, ctx, indent=indent_1 + INDENT_SIZE)
 
             ctx.storage_method = original_storage_method
-            parser = assemble_into_js(parser_node, ctx, indent=indent_1 + INDENT_SIZE)
 
             # Neither will this.
             if cond_node:
+                parser = assemble_into_js(parser_node, ctx, indent=indent_1 + INDENT_SIZE)
                 statement = (
                     f'{indent_1}function __test_case_{i}() {{\n'
                     f'{cond}\n'
@@ -102,12 +102,12 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
                     f'{indent_1}}}\n')
             
             else:
-                statement = parser
+                statement = assemble_into_js(parser_node, ctx, indent=indent_1)
 
             statements += statement
         
         return (f'{indent}{original_storage_method.as_prefix()}(function match() {{\n'
-                f'{statements}'
+                f'{statements}\n'
                 f'{indent}}}).call(this);\n')
 
     # Language utilities
@@ -115,7 +115,7 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
         if ctx.storage_method is Ignore:
             suffix = ''
         else:
-            suffix = f'\n;{indent}{ctx.storage_method.as_prefix()}{node.name}'
+            suffix = f';\n{indent}{ctx.storage_method.as_prefix()}{node.name};'
 
         ctx.storage_method = Var(node.name)
         ctx.scope[node.name] = LLType.value
@@ -167,9 +167,9 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
 
         lltype = ctx.scope[node.name]
         if lltype == LLType.parser:
-            return f'{indent}{ctx.storage_method.as_prefix()}this.{node.name}()'
+            return f'{indent}{ctx.storage_method.as_prefix()}this.{node.name}();'
         elif lltype == LLType.value:
-            return f'{indent}{ctx.storage_method.as_prefix()}{node.name}'
+            return f'{indent}{ctx.storage_method.as_prefix()}{node.name};'
         else:
             raise Exception(f'Unknown mode: "{ctx.mode}"')
 

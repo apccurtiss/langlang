@@ -26,8 +26,12 @@ process.stdin.on('readable', () => {
         input += chunk;
     }
     try {
+        let start = process.hrtime();
+        let output = exports.test(input);
+        let [s, ns] = process.hrtime(start);
         console.log(JSON.stringify({
-            output: exports.test(input)
+            output: output,
+            time_ms: (s * 1000) + (ns / 1000000)
         }));
         process.exit(0);
     }
@@ -39,7 +43,12 @@ process.stdin.on('readable', () => {
 
 
 class TestBasicPrograms(unittest.TestCase):
-    def run_parser(self, name: str, source: str, tests: Dict[str, str], entrypoint='test'):
+    def run_parser(self,
+            name: str,
+            source: str,
+            tests: Dict[str, str],
+            entrypoint='test',
+            max_time_ms=None):
         parser = compile(source, None)
         filepath = ''.join(c for c in name.lower() if c in string.ascii_letters) + '.js'
         
@@ -80,6 +89,10 @@ class TestBasicPrograms(unittest.TestCase):
                     if expected:
                         decoded_stdout = json.loads(stdout)['output']
                         self.assertTrue(are_equal(decoded_stdout, expected), f'{decoded_stdout} != {expected}')
+
+                    if max_time_ms:
+                        actual_time_ms = int(json.loads(stdout)['time_ms'])
+                        self.assertLess(actual_time_ms, max_time_ms)
 
             except subprocess.TimeoutExpired as e:
                 failures[input] = (e, b'', b'')
@@ -329,6 +342,34 @@ class TestBasicPrograms(unittest.TestCase):
     #             ' foo ) ': Exception,
     #         }
     #     )
+
+    def test_basic_parser_speed(self):
+        self.run_parser(
+            'Basic timed parser',
+            '''
+            number :: r`[0-9]+`
+            mul :: [number: left] peek {
+                case `*` => `*` [mul: right] as struct Mul { left: left, right: right }
+                case _ => left
+            }
+            add :: [mul: left] peek {
+                case `+` => `+` [add: right] as struct Add { left: left, right: right }
+                case _ => left
+            }
+            export test :: add
+            ''',
+            {
+                '1 + 2 * 3': {
+                    'left': '1',
+                    'right': {
+                        'left': '2',
+                        'right': '3'
+                    },
+                }
+            },
+            # Verify this basic expression can be parsed in 16 ms - under a 60 Hz refresh rate.
+            max_time_ms=16
+        )
 
 if __name__ == '__main__':
     unittest.main()
