@@ -1,8 +1,8 @@
 import re
 from typing import Any, Callable, Dict, Generic, List, NewType, Optional, Tuple, Type, TypeVar, Union
 
-import langlang_ast as ast
-from langlang_tokenizer import TokenStream
+from . import syntax_tree as ast
+from .tokenizer import tokenize, TokenStream
 
 # In plain English - takes a list of tokens, returns a node
 Parser = Callable[[TokenStream], Any]
@@ -37,7 +37,7 @@ def list_of(parser: Parser, minimum: int = 0, sep: Parser = None) -> Parser:
 
 def first_of(*parsers: Parser) -> Parser:
     def ret(tokens: TokenStream) -> ast.Node:
-        err = None
+        err: Exception = None
         for parser in parsers:
             backup = tokens.index
             try:
@@ -225,5 +225,6 @@ def parse_file(tokens: TokenStream) -> ast.StatementSequence:
 
     return ast.StatementSequence(stmts=stmts)
 
-def parse(tokens: TokenStream) -> ast.Node:
+def parse(source: str) -> ast.Node:
+    tokens = tokenize(source)
     return parse_file(tokens)

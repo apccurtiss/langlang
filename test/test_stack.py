@@ -5,7 +5,7 @@ import subprocess
 from typing import Dict
 import unittest
 
-from langlang.langlang import compile
+from langlang.langlang import compile_source
 
 from jinja2 import Template
 
@@ -49,7 +49,7 @@ class TestBasicPrograms(unittest.TestCase):
             tests: Dict[str, str],
             entrypoint='test',
             max_time_ms=None):
-        parser = compile(source, None)
+        parser = compile_source(source, None)
         filepath = ''.join(c for c in name.lower() if c in string.ascii_letters) + '.js'
         
         with open(filepath, 'w') as f:
@@ -101,7 +101,7 @@ class TestBasicPrograms(unittest.TestCase):
 
         if failures:
             raise Exception(
-                f'Failures for {len(failures)} inputs (see {filepath} for compiled parser):\n' +
+                f'Failures for {len(failures)} inputs (see ./{filepath} for compiled parser):\n' +
                 '\n'.join(
                     f'"{input}": {err}\n'
                     f'stdout:\n{stdout.decode()}\n'

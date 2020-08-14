@@ -1,4 +1,5 @@
 import copy
+from dataclasses import dataclass
 import enum
 import os
 import re
@@ -6,7 +7,7 @@ from typing import Any, Dict, Set, Tuple, Type, Union
 
 from jinja2 import Template
 
-import langlang_ast as ast
+from parsing import syntax_tree as ast
 
 RUNTIME_DIR = 'runtimes'
 MAIN_TEMPLATE_FILE = 'runtime.js'
@@ -38,9 +39,34 @@ class Var:
         return f'let {self.name} = '
 
 class LLType(enum.Enum):
-    parser = 1
-    # TODO: Figure out if we should expand this to include specific value types.
-    value = 2
+    def is_equal(self, other):
+        ...
+
+class Null(LLType):
+    def is_equal(self, other: LLType):
+        return isinstance(other, Null)
+
+class String(LLType):
+    def is_equal(self, other: LLType):
+        return isinstance(other, String)
+
+class Parser(LLType):
+    def __init__(self, ret: LLType):
+        self.ret = ret
+
+    def is_equal(self, other: LLType):
+        return isinstance(other, Parser) and self.ret.is_equal(other.ret)
+
+class Struct(LLType):
+    def __init__(self, fields: Dict[str, LLType]):
+        self.fields = fields
+
+    def is_equal(self, other: LLType):
+        return (
+            isinstance(other, Struct) and 
+            all(field_type.is_equal(other.fields.get(name, Null))
+                for name, field_type in self.fields.items())
+        )
 
 class Context:
     def __init__(self):
@@ -48,8 +74,9 @@ class Context:
         self.storage_method: Union[Type[Ignore], Type[Return], Var] = Ignore
         self.exports: Set[str] = set()
         self.scope: Dict[str, LLType] = {}
+        self.type = None
 
-def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
+def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> Tuple[str, LLType]:
     # Basic parsers
     if isinstance(node, ast.LiteralParser):
         # Replace with literal regex that does the same thing.
@@ -57,42 +84,52 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
         escaped_re = re.sub(r'([-/[\]{}()*+?.,\\^$|#\\s])', r'\\\1', node.value)
         as_re = f'/^{escaped_re}/'
         ctx.tokens[token_name] = as_re
-        return f'{indent}{ctx.storage_method.as_prefix()}this.__require("{token_name}").value;'
+        return (
+            f'{indent}{ctx.storage_method.as_prefix()}this.__require("{token_name}").value;',
+            String()
+        )
 
     elif isinstance(node, ast.RegexParser):
         token_name = node.value.replace('"', '\\"')
         escaped_re = node.value.replace('/',  '\\/')
         as_re = f'/^{escaped_re}/'
         ctx.tokens[token_name] = as_re
-        return f'{indent}{ctx.storage_method.as_prefix()}this.__require("{token_name}").value;'
+        return (
+            f'{indent}{ctx.storage_method.as_prefix()}this.__require("{token_name}").value;',
+            String()
+        )
 
     # Parser combinators
     elif isinstance(node, ast.Sequence):
         original_storage_method = ctx.storage_method
         ctx.storage_method = Ignore
-        e1 = assemble_into_js(node.expr1, ctx, indent=indent)
+        e1, _ = assemble_into_js(node.expr1, ctx, indent=indent)
 
         ctx.storage_method = original_storage_method
-        e2 = assemble_into_js(node.expr2, ctx, indent=indent)
-        return f'{e1}\n{e2}'
+        e2, type2 = assemble_into_js(node.expr2, ctx, indent=indent)
+        return (
+            f'{e1}\n{e2}',
+            type2
+        )
 
     elif isinstance(node, ast.Peek):
         original_storage_method = ctx.storage_method
         
         statements = ''
+        return_type = None
         for i, (cond_node, parser_node) in enumerate(node.cases, 1):
             indent_1 = indent + INDENT_SIZE
 
             # This won't happen in the default case.
             if cond_node:
                 ctx.storage_method = Ignore
-                cond = assemble_into_js(cond_node, ctx, indent=indent_1 + INDENT_SIZE)
+                cond, _ = assemble_into_js(cond_node, ctx, indent=indent_1 + INDENT_SIZE)
 
             ctx.storage_method = original_storage_method
 
             # Neither will this.
             if cond_node:
-                parser = assemble_into_js(parser_node, ctx, indent=indent_1 + INDENT_SIZE)
+                parser, case_type = assemble_into_js(parser_node, ctx, indent=indent_1 + INDENT_SIZE)
                 statement = (
                     f'{indent_1}function __test_case_{i}() {{\n'
                     f'{cond}\n'
@@ -102,13 +139,22 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
                     f'{indent_1}}}\n')
             
             else:
-                statement = assemble_into_js(parser_node, ctx, indent=indent_1)
+                statement, case_type = assemble_into_js(parser_node, ctx, indent=indent_1)
+
+            if return_type is None:
+                return_type = case_type
+            elif return_type != case_type:
+                # TODO: Raise exception
+                pass
 
             statements += statement
         
-        return (f'{indent}{original_storage_method.as_prefix()}(function match() {{\n'
-                f'{statements}\n'
-                f'{indent}}}).call(this);\n')
+        return (
+            f'{indent}{original_storage_method.as_prefix()}(function match() {{\n'
+            f'{statements}\n'
+            f'{indent}}}).call(this);\n',
+            return_type
+        )
 
     # Language utilities
     elif isinstance(node, ast.Named):
@@ -118,30 +164,40 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
             suffix = f';\n{indent}{ctx.storage_method.as_prefix()}{node.name};'
 
         ctx.storage_method = Var(node.name)
-        ctx.scope[node.name] = LLType.value
-        return f'{assemble_into_js(node.expr, ctx, indent=indent)}{suffix}'
+        expr, expr_type = assemble_into_js(node.expr, ctx, indent=indent)
+
+        ctx.scope[node.name] = expr_type
+        return (
+            f'{expr}{suffix}',
+            expr_type
+        )
 
     elif isinstance(node, ast.As):
         original_storage_method = ctx.storage_method
-
         ctx.storage_method = Ignore
-        parser = assemble_into_js(node.parser, ctx, indent=indent)
+        parser, _ = assemble_into_js(node.parser, ctx, indent=indent)
 
         ctx.storage_method = original_storage_method
-        result = assemble_into_js(node.result, ctx, indent=indent)
+        result, result_type = assemble_into_js(node.result, ctx, indent=indent)
 
-        return f'{parser}\n{result}'
+        return (
+            f'{parser}\n{result}',
+            result_type
+        )
 
     elif isinstance(node, ast.Error):
         indent1 = indent + INDENT_SIZE
 
-        parser = assemble_into_js(node.parser, ctx, indent=indent1)
+        parser, parser_type = assemble_into_js(node.parser, ctx, indent=indent1)
 
-        return (f'{indent}try {{\n'
-                f'{parser}\n'
-                f'{indent}}} catch (e) {{\n'
-                f'{indent1}throw Error({node.message})\n'
-                f'{indent}}}')
+        return (
+            f'{indent}try {{\n'
+            f'{parser}\n'
+            f'{indent}}} catch (e) {{\n'
+            f'{indent1}throw Error({node.message})\n'
+            f'{indent}}}',
+            parser_type
+        )
 
     elif isinstance(node, ast.Debug):
         if ctx.storage_method is Ignore:
@@ -157,8 +213,11 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
             raise Exception('Unknown storage method')
 
         ctx.storage_method = Var(var_name)
-        e = assemble_into_js(node.expr, ctx, indent=indent)
-        return f'{e}\n{indent}console.log(JSON.stringify({var_name}));{suffix}'
+        e, e_type = assemble_into_js(node.expr, ctx, indent=indent)
+        return (
+            f'{e}\n{indent}console.log(JSON.stringify({var_name}));{suffix}',
+            e_type
+        )
 
     # Values
     elif isinstance(node, ast.Var):
@@ -166,12 +225,16 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
             raise Exception(f'"{node.name}" is not defined!')
 
         lltype = ctx.scope[node.name]
-        if lltype == LLType.parser:
-            return f'{indent}{ctx.storage_method.as_prefix()}this.{node.name}();'
-        elif lltype == LLType.value:
-            return f'{indent}{ctx.storage_method.as_prefix()}{node.name};'
+        if isinstance(lltype, Parser):
+            return (
+                f'{indent}{ctx.storage_method.as_prefix()}this.{node.name}();',
+                lltype
+            )
         else:
-            raise Exception(f'Unknown mode: "{ctx.mode}"')
+            return (
+                f'{indent}{ctx.storage_method.as_prefix()}{node.name};',
+                lltype
+            )
 
 
     elif isinstance(node, ast.Struct):
@@ -179,28 +242,39 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
         item_map = f',\n{indent1}'.join(f'"{key}": {value}' for key, value in node.map.items())
         if node.name:
             item_map += f',\n{indent1}"_type": "{node.name}"'
-        return (f'{indent}{ctx.storage_method.as_prefix()}{{\n'
-                f'{indent1}{item_map}\n'
-                f'{indent}}}')
+
+        return (
+            f'{indent}{ctx.storage_method.as_prefix()}{{\n'
+            f'{indent1}{item_map}\n'
+            f'{indent}}}',
+            Struct({key: ctx.scope(value) for key, value in node.map.items()})
+        )
 
     # File-level structures
     elif isinstance(node, ast.StatementSequence):
-        return '\n'.join(assemble_into_js(s, ctx=ctx, indent=indent) for s in node.stmts)
+        return (
+            '\n'.join(assemble_into_js(s, ctx=ctx, indent=indent)[0] for s in node.stmts),
+            None
+        )
 
     elif isinstance(node, ast.Def):
         if node.export:
             ctx.exports.add(node.name)
-        ctx.scope[node.name] = LLType.parser
+        # TODO: Figure out how to make this recursive
+        ctx.scope[node.name] = Parser(Null)
 
         # We copy the scope and restore it later so local variables don't pollute the global scope.
         # TODO: Find a cleaner way of doing this.
         scope_backup = copy.copy(ctx.scope)
         ctx.storage_method = Return
-        assembled_js = assemble_into_js(node.expr, ctx, indent=indent + INDENT_SIZE)
+        assembled_js, def_type = assemble_into_js(node.expr, ctx, indent=indent + INDENT_SIZE)
         ctx.scope = scope_backup
-        return (f'{indent}{node.name}() {{\n'
-                f'{assembled_js}\n'
-                f'{indent}}}')
+        return (
+            f'{indent}{node.name}() {{\n'
+            f'{assembled_js}\n'
+            f'{indent}}}',
+            def_type
+        )
     
     else:
         raise Exception(f'Unknown AST node: {node}')
@@ -211,7 +285,7 @@ def assemble(ast, standalone_parser_entrypoint=None):
     context = Context()
 
     # Statefully changes context
-    parsers = assemble_into_js(ast, context, indent=INDENT_SIZE)
+    parsers, _ = assemble_into_js(ast, context, indent=INDENT_SIZE)
 
     with open(runtime_template_filepath) as f:
         output_template = Template(f.read())
