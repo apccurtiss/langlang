@@ -1,9 +1,12 @@
+import enum
+from dataclasses import dataclass
 import re
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
+
 class Node:
-    def __init__(self, *pargs, **kwargs):
-        raise Exception('Must implement constructor!')
+    lltype = ...
+    storage_method = ...
 
 # Basic parsers
 class LiteralParser(Node):

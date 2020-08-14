@@ -30,7 +30,7 @@ process.stdin.on('readable', () => {
         let output = exports.test(input);
         let [s, ns] = process.hrtime(start);
         console.log(JSON.stringify({
-            output: output,
+            output: String(output),
             time_ms: (s * 1000) + (ns / 1000000)
         }));
         process.exit(0);
@@ -103,7 +103,8 @@ class TestBasicPrograms(unittest.TestCase):
             raise Exception(
                 f'Failures for {len(failures)} inputs (see ./{filepath} for compiled parser):\n' +
                 '\n'.join(
-                    f'"{input}": {err}\n'
+                    f'Input: "{input}"\n'
+                    f'Error: {err}\n'
                     f'stdout:\n{stdout.decode()}\n'
                     f'stderr:\n{stderr.decode()}\n'
                     '\n==================\n' for input, (err, stdout, stderr) in failures.items()
