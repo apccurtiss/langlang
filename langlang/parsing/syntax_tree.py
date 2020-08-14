@@ -5,7 +5,8 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 
 class Node:
-    lltype = ...
+    # Set in syntax_tree_utilities
+    type = ...
     storage_method = ...
 
 # Basic parsers

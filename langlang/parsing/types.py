@@ -20,9 +20,9 @@ class Parser(LLType):
 class Struct(LLType):
     fields: Dict[str, LLType]
 
-    def __eq__(self, other):
+    def __eq__(self, other: LLType):
         if not isinstance(other, Struct):
             return False
 
         return all(self.fields[k] == other.fields[k] 
-            for k in set(self.fields.keys() + other.fields.keys()))
+            for k in set((*self.fields.keys(), *other.fields.keys())))

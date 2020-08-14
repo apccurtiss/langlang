@@ -126,7 +126,7 @@ def assemble_into_js(node: ast.Node, ctx: Context, indent='') -> str:
 
     # Values
     elif isinstance(node, ast.Var):
-        if isinstance(node.lltype, types.Parser):
+        if isinstance(node.type, types.Parser):
             return f'{indent}{node.storage_method.as_prefix()}this.{node.name}();'
         else:
             return f'{indent}{node.storage_method.as_prefix()}{node.name};'

@@ -1,7 +1,7 @@
 import re
 from typing import Any, Callable, Dict, Generic, List, NewType, Optional, Tuple, Type, TypeVar, Union
 
-from . import fill_out_tree
+from . import syntax_tree_utilities
 from . import syntax_tree as ast
 from .tokenizer import tokenize, TokenStream
 
@@ -229,6 +229,6 @@ def parse_file(tokens: TokenStream) -> ast.StatementSequence:
 def parse(source: str) -> ast.Node:
     tokens = tokenize(source)
     tree = parse_file(tokens)
-    fill_out_tree.fill_out_tree(tree)
+    syntax_tree_utilities.set_additional_properties(tree)
 
     return tree

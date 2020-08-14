@@ -30,7 +30,7 @@ process.stdin.on('readable', () => {
         let output = exports.test(input);
         let [s, ns] = process.hrtime(start);
         console.log(JSON.stringify({
-            output: String(output),
+            output: output || 'undefined',
             time_ms: (s * 1000) + (ns / 1000000)
         }));
         process.exit(0);
@@ -231,7 +231,7 @@ class TestBasicPrograms(unittest.TestCase):
 
     def test_nested_peek_parsers(self):
         self.run_parser(
-            'Peek Parser',
+            'Nested Peek Parser',
             '''
             export test :: peek {
                 case `foo` => `foo` peek {
@@ -253,7 +253,7 @@ class TestBasicPrograms(unittest.TestCase):
 
     def test_basic_exceptions(self):
         self.run_parser(
-            'Value Parser',
+            'Basic Exceptions',
             '''
             export test :: `foo` `bar` `baz` ! "Fooerror!"
             ''',
@@ -266,7 +266,7 @@ class TestBasicPrograms(unittest.TestCase):
 
     def test_multiple_exceptions(self):
         self.run_parser(
-            'Value Parser',
+            'Multiple Exceptions',
             '''
             export test :: `foo` ! "Fooerror!"
                            `bar` ! "Barerror!"
@@ -283,7 +283,7 @@ class TestBasicPrograms(unittest.TestCase):
 
     def test_values(self):
         self.run_parser(
-            'Value Parser',
+            'Parser Values',
             '''
             export test :: [`foo`: foovalue]
                 as struct FooNode { value: foovalue }
@@ -298,7 +298,7 @@ class TestBasicPrograms(unittest.TestCase):
 
     def test_multi_parsers(self):
         self.run_parser(
-            'Value Parser',
+            'Multiple Parsers',
             '''
             num :: r`\\d+`
             add :: num `+` num 
@@ -311,7 +311,7 @@ class TestBasicPrograms(unittest.TestCase):
 
     def test_basic_fraciton_parser(self):
         self.run_parser(
-            'Value Parser',
+            'Fraction Parser',
             '''
             integer :: r`\\d+`
             export test :: [integer: num] `/` [integer: den]
@@ -346,7 +346,7 @@ class TestBasicPrograms(unittest.TestCase):
 
     def test_basic_parser_speed(self):
         self.run_parser(
-            'Basic timed parser',
+            'Timed Parser',
             '''
             number :: r`[0-9]+`
             mul :: [number: left] peek {
